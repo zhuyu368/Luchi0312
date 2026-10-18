@@ -3296,7 +3296,10 @@ input:checked + .slider:before {
 </head>
 <body>
 <!-- 气泡自定义样式注入点（由JS动态更新） -->
-<style id="bubbleCustomStyle">
+<style id="bubbleCustomStyle"></style>
+
+<!-- 气泡样式设置面板自身的样式（与自定义气泡样式分开，避免被覆盖） -->
+<style id="bubbleEditorStyle">
 /* ====================== 气泡样式设置模块 ====================== */
 .bubble-style-editor {
   display: flex;
@@ -4410,6 +4413,11 @@ input:checked + .slider:before {
 }"></textarea>
       </div>
 
+      <!-- 万能识别提示 -->
+      <div style="margin:-4px 0 8px; padding:8px 12px; background:rgba(138,127,141,0.08); border-left:3px solid var(--accent); border-radius:8px; font-size:0.78rem; color:var(--text); line-height:1.6;">
+        ✨ <b>直接粘贴任意气泡代码即可，无需专门转换</b>——无论是哪种写法、什么类名，这里都会自动精准识别并转换为可用的气泡样式。
+      </div>
+
       <!-- 实时预览 -->
       <div>
         <label class="bubble-css-label">👁️ 实时预览</label>
@@ -4468,8 +4476,9 @@ input:checked + .slider:before {
         💡 使用说明：<br>
         • 输入 CSS 后右侧预览实时更新<br>
         • 点击「应用到聊天界面」立即替换聊天气泡样式<br>
-        • 支持 .message.self（自己）和 .message.other（对方）两个选择器<br>
+        • 任意气泡代码都能自动精准识别并转换（背景/颜色/渐变/贴图/圆角/边框等全自动应用）<br>
         • 点击「重置默认」可恢复原始气泡样式<br>
+        • 样式与预设会随「数据管理 · 全部备份」一起导出/导入<br>
         • 样式会自动保存，刷新页面后仍然生效
       </div>
 
@@ -4604,6 +4613,52 @@ input:checked + .slider:before {
 // 第一部分：从第一个代码文件移植的健壮存储逻辑
 // ========================
 
+// ========================
+// 安全存储封装：沙箱 iframe / 隐私模式等环境下，访问 localStorage 会直接抛错，
+// 一旦初始化阶段炸掉，整个页面的按钮都会失灵。这里统一兜底，不可用时降级为内存存储。
+// ========================
+const LCSafeStorage = (function () {
+    let real = null;
+    try {
+        const probe = '__storage_probe_' + Date.now();
+        window.localStorage.setItem(probe, '1');
+        window.localStorage.removeItem(probe);
+        real = window.localStorage;
+    } catch (e) {
+        real = null;
+        console.warn('本地存储不可用，已降级为内存存储（本次打开的数据不会保存）:', e && e.message);
+    }
+    const memory = {};
+    const has = k => Object.prototype.hasOwnProperty.call(memory, k);
+    return {
+        available: !!real,
+        getItem(key) {
+            try {
+                if (real) return real.getItem(key);
+            } catch (e) { /* 忽略 */ }
+            return has(key) ? memory[key] : null;
+        },
+        setItem(key, value) {
+            if (real) return real.setItem(key, value); // 配额异常仍照旧抛给上层处理
+            memory[key] = String(value);
+        },
+        removeItem(key) {
+            try { if (real) real.removeItem(key); } catch (e) { /* 忽略 */ }
+            delete memory[key];
+        },
+        keys() {
+            try {
+                if (real) {
+                    const out = [];
+                    for (let i = 0; i < real.length; i++) out.push(real.key(i));
+                    return out;
+                }
+            } catch (e) { /* 忽略 */ }
+            return Object.keys(memory);
+        }
+    };
+})();
+
 /**
  * 数据存储管理类 - 完全移植自第一个代码文件
  * 特点：完善的异常处理、容量管理、数据完整性检查
@@ -4658,9 +4713,9 @@ this.PENDING_LETTER_ID_KEY = 'seven_and_wish_pending_letter_id';
      */
     initData() {
         // 检查是否需要初始化默认数据
-        const hasAnyData = localStorage.getItem(this.SELF_INFO_KEY) !== null ||
-                          localStorage.getItem(this.OTHER_INFO_KEY) !== null ||
-                          localStorage.getItem(this.MESSAGES_KEY) !== null;
+        const hasAnyData = LCSafeStorage.getItem(this.SELF_INFO_KEY) !== null ||
+                          LCSafeStorage.getItem(this.OTHER_INFO_KEY) !== null ||
+                          LCSafeStorage.getItem(this.MESSAGES_KEY) !== null;
         
         if (!hasAnyData) {
             console.log('首次运行，创建默认数据');
@@ -4668,8 +4723,8 @@ this.PENDING_LETTER_ID_KEY = 'seven_and_wish_pending_letter_id';
         }
         
         // 确保版本信息存在
-        if (!localStorage.getItem(this.DATA_VERSION_KEY)) {
-            localStorage.setItem(this.DATA_VERSION_KEY, this.DATA_VERSION);
+        if (!LCSafeStorage.getItem(this.DATA_VERSION_KEY)) {
+            LCSafeStorage.setItem(this.DATA_VERSION_KEY, this.DATA_VERSION);
         }
     }
     
@@ -4807,7 +4862,7 @@ this.setStoredData(this.POKE_SETTINGS_KEY, {
         this.setStoredData(this.TODAY_DATE_KEY, new Date().toDateString());
         
         // 保存版本
-        localStorage.setItem(this.DATA_VERSION_KEY, this.DATA_VERSION);
+        LCSafeStorage.setItem(this.DATA_VERSION_KEY, this.DATA_VERSION);
     }
     
     /**
@@ -4830,7 +4885,7 @@ this.setStoredData(this.POKE_SETTINGS_KEY, {
      */
     getStoredData(key) {
         try {
-            const data = localStorage.getItem(key);
+            const data = LCSafeStorage.getItem(key);
             if (!data) return null;
             
             // 尝试解析JSON
@@ -4869,9 +4924,9 @@ this.setStoredData(this.POKE_SETTINGS_KEY, {
             
             // 尝试保存
             if (typeof data === 'object') {
-                localStorage.setItem(key, JSON.stringify(data));
+                LCSafeStorage.setItem(key, JSON.stringify(data));
             } else {
-                localStorage.setItem(key, data);
+                LCSafeStorage.setItem(key, data);
             }
             
             return true;
@@ -4887,9 +4942,9 @@ this.setStoredData(this.POKE_SETTINGS_KEY, {
                 // 清理后重试一次
                 try {
                     if (typeof data === 'object') {
-                        localStorage.setItem(key, JSON.stringify(data));
+                        LCSafeStorage.setItem(key, JSON.stringify(data));
                     } else {
-                        localStorage.setItem(key, data);
+                        LCSafeStorage.setItem(key, data);
                     }
                     console.log('重试保存成功');
                     return true;
@@ -4909,7 +4964,7 @@ this.setStoredData(this.POKE_SETTINGS_KEY, {
     clearOldData() {
         try {
             // 获取所有相关的存储键
-            const allKeys = Object.keys(localStorage);
+            const allKeys = LCSafeStorage.keys();
             const relevantKeys = allKeys.filter(key => 
                 key.includes('seven_and_wish_') && 
                 !key.includes(this.SELF_INFO_KEY) && 
@@ -4929,8 +4984,8 @@ this.setStoredData(this.POKE_SETTINGS_KEY, {
             
             // 先清理优先级低的
             for (const key of priorityOrder) {
-                if (localStorage.getItem(key)) {
-                    localStorage.removeItem(key);
+                if (LCSafeStorage.getItem(key)) {
+                    LCSafeStorage.removeItem(key);
                     console.log(`已清理旧数据: ${key}`);
                     break; // 一次只清理一个，避免删除过多
                 }
@@ -5281,12 +5336,12 @@ savePendingLetterId(id) {
     clearAllData() {
         try {
             // 获取所有相关键
-            const keysToRemove = Object.keys(localStorage).filter(key => 
+            const keysToRemove = LCSafeStorage.keys().filter(key => 
                 key.includes('seven_and_wish_')
             );
             
             keysToRemove.forEach(key => {
-                localStorage.removeItem(key);
+                LCSafeStorage.removeItem(key);
             });
             
             // 重新创建默认数据
@@ -5676,28 +5731,47 @@ if (this.dataManager.savePendingLetterId) {
         // 2. 打开页面时将所有对方发送的消息标记为已读
         this.markOtherMessagesAsRead();
         
-        // 3. 渲染所有UI
-        this.renderAllUI();
+        // 3. 渲染所有UI（局部出错也不能影响按钮绑定）
+        try {
+            this.renderAllUI();
+        } catch (e) {
+            console.error('界面渲染失败:', e);
+        }
         
-        // 4. 启动所有定时器
-        this.startAllTimers();
-        
-        // 5. 设置事件监听器
+        // 4. 设置事件监听器（提前绑定：后面的附加功能即使出错，按钮也照常可用）
         this.setupEventListeners();
+        
+        // 5. 启动所有定时器
+        try {
+            this.startAllTimers();
+        } catch (e) {
+            console.warn('定时器启动失败:', e);
+        }
         
         // 6. 显示加载成功通知
         this.showNotification('聊天记录已加载');
 
         // ===== 初始化推送通知（push-plugin版）=====
-        this.initSimpleNotification();
-        console.log('✅ 消息通知已初始化（push-plugin版）');
+        try {
+            this.initSimpleNotification();
+            console.log('✅ 消息通知已初始化（push-plugin版）');
+        } catch (e) {
+            console.warn('消息通知初始化失败（不影响其它功能）:', e);
+        }
         // ===== 启动后台保活（Service Worker + 静音音频 + WakeLock）=====
-        this.enableBackgroundKeepAlive();
-        console.log('✅ 后台保活已启动');
+        try {
+            this.enableBackgroundKeepAlive();
+            console.log('✅ 后台保活已启动');
+        } catch (e) {
+            console.warn('后台保活启动失败（不影响其它功能）:', e);
+        }
 
         // 监听 Service Worker 通知点击消息，执行页面内跳转
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.addEventListener('message', (e) => {
+        // 注意：沙箱 iframe、部分内嵌浏览器里读 navigator.serviceWorker 会抛 SecurityError，
+        // 必须放在 try 里，否则整个初始化会中断，导致页面上所有按钮都点不动
+        try {
+            if (navigator.serviceWorker) {
+                navigator.serviceWorker.addEventListener('message', (e) => {
                 if (e.data && e.data.type === 'NOTIFICATION_CLICK') {
                     const data = e.data.data || {};
                     if (data.type === 'moments' && data.postId) {
@@ -5712,10 +5786,17 @@ if (this.dataManager.savePendingLetterId) {
                         this._jumpToChat();
                     }
                 }
-            });
+                });
+            }
+        } catch (e) {
+            console.warn('Service Worker 不可用，已跳过通知点击监听:', e && e.message);
         }
         // ===== 初始化后台保活UI控制器 =====
-        this.initBackgroundKeepAlive();
+        try {
+            this.initBackgroundKeepAlive();
+        } catch (e) {
+            console.warn('保活面板初始化失败:', e);
+        }
         
         // 7. 自动保存定时器（每30秒）
         setInterval(() => {
@@ -5735,7 +5816,7 @@ if (this.dataManager.savePendingLetterId) {
         });
         
         // 10. 恢复夜间模式状态
-        const savedNightMode = localStorage.getItem('night_mode_enabled');
+        const savedNightMode = LCSafeStorage.getItem('night_mode_enabled');
         if (savedNightMode === 'true') {
             document.documentElement.classList.add('night-mode');
             const themeToggle = document.getElementById('themeToggle');
@@ -5785,9 +5866,18 @@ if (this.dataManager.savePendingLetterId) {
         this.initMusicSettingsUI();
         this.renderPokeUI(); // 新增拍一拍UI
         this.renderLetterUI(); // 新增写信收信UI
-        this.initBubbleCSSSettingsUI(); // 气泡样式UI初始化
-        // 页面加载时应用已保存的气泡CSS（静默，不弹提示）
-        this.applyBubbleCSS(this.appData.bubbleStyle?.css || '', false);
+        // 气泡样式属于附加功能，即使这里出现问题也不能影响其它按钮的绑定
+        try {
+            this.initBubbleCSSSettingsUI(); // 气泡样式UI初始化
+        } catch (e) {
+            console.warn('气泡样式面板初始化失败:', e);
+        }
+        try {
+            // 页面加载时应用已保存的气泡CSS（静默，不弹提示）
+            this.applyBubbleCSS(this.appData.bubbleStyle?.css || '', false);
+        } catch (e) {
+            console.warn('气泡样式应用失败:', e);
+        }
         this.updateStickerCount();
         this.updatePhraseCount();
         this.updateTarotPhraseCount();
@@ -5797,12 +5887,8 @@ if (this.dataManager.savePendingLetterId) {
     // UI 渲染方法
     
     // ========================
-    // 气泡样式设置功能
+    // 气泡样式设置功能（与第一个代码文件完全一致）
     // ========================
-
-    /**
-     * 初始化气泡样式设置UI
-     */
     initBubbleCSSSettingsUI() {
         const textarea = document.getElementById('bubbleCSSInput');
         if (!textarea) return;
@@ -5868,6 +5954,7 @@ if (this.dataManager.savePendingLetterId) {
                 .map(s => {
                     const trimmed = s.trim();
                     if (!trimmed) return '';
+                    if (trimmed === ':root' || trimmed.startsWith(':root')) return trimmed;
                     return `#bubblePreviewWrap ${trimmed}`;
                 })
                 .filter(Boolean)
@@ -5879,19 +5966,336 @@ if (this.dataManager.savePendingLetterId) {
     }
 
     /**
-     * 将用户CSS中的各种气泡选择器规范化为实际聊天HTML使用的类名
+     * 将用户 CSS 中的各种气泡选择器规范化为实际聊天 HTML 使用的类名。
+     * 支持几十种市面常见写法：标准 / 收发 / 气泡 / 左右 / 人称 / 方向命名等；
+     * 先用占位符保护已是标准形式的 .message.other / .message.self，避免被同义词二次改写。
      */
     _normalizeBubbleCSS(css) {
         if (!css) return '';
-        return css
-            .replace(/\.message-received\b/g, '.message.other')
-            .replace(/\.message-sent\b/g, '.message.self')
-            .replace(/\.message-other\b/g, '.message.other')
-            .replace(/\.message-self\b/g, '.message.self')
-            .replace(/\.bubble-received\b/g, '.message.other')
-            .replace(/\.bubble-sent\b/g, '.message.self')
-            .replace(/\.incoming\b/g, '.message.other')
-            .replace(/\.outgoing\b/g, '.message.self');
+        const PROT_O = '@@BUBBLE_STD_OTHER@@';
+        const PROT_S = '@@BUBBLE_STD_SELF@@';
+        let out = css
+            .replace(/\.message\.other\b/g, PROT_O)
+            .replace(/\.message\.self\b/g, PROT_S);
+        const pairs = [
+            // —— 对方（左侧 / 接收）——
+            [/\.message-received\b/g, PROT_O],
+            [/\.message-other\b/g, PROT_O],
+            [/\.msg-received\b/g, PROT_O],
+            [/\.msg-other\b/g, PROT_O],
+            [/\.bubble-received\b/g, PROT_O],
+            [/\.bubble-other\b/g, PROT_O],
+            [/\.bubble-left\b/g, PROT_O],
+            [/\.left-bubble\b/g, PROT_O],
+            [/\.msg-left\b/g, PROT_O],
+            [/\.left-msg\b/g, PROT_O],
+            [/\.chat-left\b/g, PROT_O],
+            [/\.talk-left\b/g, PROT_O],
+            [/\.sms-in\b/g, PROT_O],
+            [/\.in-message\b/g, PROT_O],
+            [/\.other-message\b/g, PROT_O],
+            [/\.other-msg\b/g, PROT_O],
+            [/\.receive-msg\b/g, PROT_O],
+            [/\.friend-bubble\b/g, PROT_O],
+            [/\.them-bubble\b/g, PROT_O],
+            [/\.from-them\b/g, PROT_O],
+            [/\.incoming\b/g, PROT_O],
+            [/\.receiver\b/g, PROT_O],
+            [/\.bubble\.left\b/g, PROT_O],
+            [/\.chat-bubble\.left\b/g, PROT_O],
+            [/\.chat-message\.left\b/g, PROT_O],
+            [/\.message\.left\b/g, PROT_O],
+            [/\.msg\.left\b/g, PROT_O],
+            [/\.msg\.in\b/g, PROT_O],
+            [/\.them\b/g, PROT_O],
+            [/\.other\b/g, PROT_O],
+            // —— 自己（右侧 / 发送）——
+            [/\.message-sent\b/g, PROT_S],
+            [/\.message-self\b/g, PROT_S],
+            [/\.msg-sent\b/g, PROT_S],
+            [/\.msg-self\b/g, PROT_S],
+            [/\.bubble-sent\b/g, PROT_S],
+            [/\.bubble-self\b/g, PROT_S],
+            [/\.bubble-right\b/g, PROT_S],
+            [/\.right-bubble\b/g, PROT_S],
+            [/\.msg-right\b/g, PROT_S],
+            [/\.right-msg\b/g, PROT_S],
+            [/\.chat-right\b/g, PROT_S],
+            [/\.talk-right\b/g, PROT_S],
+            [/\.sms-out\b/g, PROT_S],
+            [/\.out-message\b/g, PROT_S],
+            [/\.my-message\b/g, PROT_S],
+            [/\.self-message\b/g, PROT_S],
+            [/\.my-msg\b/g, PROT_S],
+            [/\.self-msg\b/g, PROT_S],
+            [/\.send-msg\b/g, PROT_S],
+            [/\.my-bubble\b/g, PROT_S],
+            [/\.me-bubble\b/g, PROT_S],
+            [/\.from-me\b/g, PROT_S],
+            [/\.outgoing\b/g, PROT_S],
+            [/\.sender\b/g, PROT_S],
+            [/\.bubble\.right\b/g, PROT_S],
+            [/\.chat-bubble\.right\b/g, PROT_S],
+            [/\.chat-message\.right\b/g, PROT_S],
+            [/\.message\.right\b/g, PROT_S],
+            [/\.msg\.right\b/g, PROT_S],
+            [/\.msg\.out\b/g, PROT_S],
+            [/\.me\b/g, PROT_S],
+            [/\.self\b/g, PROT_S]
+        ];
+        pairs.forEach(function (p) { out = out.replace(p[0], p[1]); });
+        return out.split(PROT_O).join('.message.other').split(PROT_S).join('.message.self');
+    }
+
+    /**
+     * 气泡 CSS 预处理管线（万能识别版）：
+     * 剥离 style/HTML 标签（内联样式先收集）→ 选择器规范化（几十种市面常见格式）
+     * → 已识别出标准选择器时，再抢救未映射的共用样式与伪元素尾巴（保证外观不丢）
+     * → 完全无标准选择器时，走万能提取：任意乱七八糟的类名也能按评分+顺序拆出双方气泡
+     */
+    _prepareBubbleCSS(css) {
+        if (!css || !css.trim()) return '';
+        let src = String(css);
+        // 所有 <style> 标签：全部替换为其内容（支持多段）
+        src = src.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '\n$1\n');
+        // 先收集 HTML 内联气泡样式（之后标签会被剥离）
+        const inlineRules = this._collectInlineBubbleStyles(src);
+        // 混入的 HTML 标签：直接剥离
+        if (/<[a-z!\/][\s\S]*>/i.test(src)) src = src.replace(/<[^>]*>/g, '');
+        let out = this._normalizeBubbleCSS(src);
+        if (/\.message\.(self|other)/.test(out)) {
+            const rescue = this._rescueUnmappedBubbleRules(out);
+            return (rescue.prefix || '') + out + (rescue.suffix || '');
+        }
+        const extracted = this._extractBubbleCSS(src, inlineRules);
+        if (extracted) return extracted;
+        return out;
+    }
+
+    /**
+     * 气泡外观评分：判断一条规则"像不像对话气泡"（背景/圆角/阴影权重高）
+     */
+    _bubbleScore(body) {
+        if (!body) return 0;
+        let s = 0;
+        if (/background(-color|-image)?\s*:/i.test(body)) s += 3;
+        if (/border-radius\s*:/i.test(body)) s += 3;
+        if (/box-shadow\s*:/i.test(body)) s += 2;
+        if (/(^|;)\s*border(-top|-bottom|-left|-right)?\s*:/i.test(body)) s += 1;
+        if (/(^|;)\s*color\s*:/i.test(body)) s += 1;
+        if (/(^|;)\s*padding(-top|-bottom|-left|-right)?\s*:/i.test(body)) s += 1;
+        if (/backdrop-filter\s*:/i.test(body)) s += 1;
+        return s;
+    }
+
+    /**
+     * 从 HTML 片段里收集内联 style 的气泡样式（粘贴整段网页代码也能识别）
+     * 方向线索：float / margin auto / align-self / text-align
+     */
+    _collectInlineBubbleStyles(html) {
+        const out = [];
+        if (!html || !/<[a-z][^>]*\bstyle\s*=/i.test(html)) return out;
+        const re = /<([a-z][a-z0-9-]*)\b([^>]*)>/gi;
+        let m;
+        while ((m = re.exec(html)) !== null) {
+            const attrs = m[2] || '';
+            const sm = attrs.match(/style\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
+            if (!sm) continue;
+            const body = (sm[1] !== undefined ? sm[1] : (sm[2] || '')).trim();
+            if (!body || this._bubbleScore(body) < 2) continue;
+            let side = null;
+            if (/(float\s*:\s*right|margin-left\s*:\s*auto|align-self\s*:\s*(?:flex-)?end|text-align\s*:\s*right)/i.test(body)) side = 'self';
+            else if (/(float\s*:\s*left|margin-right\s*:\s*auto|align-self\s*:\s*(?:flex-)?start)/i.test(body)) side = 'other';
+            out.push({ body: body, side: side, pseudo: null, order: out.length });
+        }
+        return out;
+    }
+
+    /**
+     * 抢救 pass：规范化后仍未映射到 .message.self/.other 的规则里，
+     * 把"气泡共用基础样式"（类名含 bubble/chat/msg/message/balloon）与伪元素尾巴
+     * （::before/::after，类名含 bubble/chat/msg/.../tip/tail/arrow）补到双方气泡上，
+     * 保证共用底图、贴图、小尾巴不丢失。共用样式前置，保证左右各自的覆盖仍生效。
+     */
+    _rescueUnmappedBubbleRules(css) {
+        const res = { prefix: '', suffix: '' };
+        if (!css) return res;
+        try {
+            const re = /([^{}]+)\{([^{}]*)\}/g;
+            let m;
+            const sharedBase = [];
+            const pseudos = [];
+            while ((m = re.exec(css)) !== null) {
+                const rawSel = (m[1] || '').trim();
+                const body = (m[2] || '').trim();
+                if (!rawSel || !body) continue;
+                if (rawSel.charAt(0) === '@') continue;
+                if (/^(:root|:host|body|html|\*)\b/i.test(rawSel)) continue;
+                if (/:hover|:focus|:active|:visited/i.test(rawSel)) continue;
+                const parts = rawSel.split(',').map(s => s.trim()).filter(Boolean);
+                if (!parts.length) continue;
+                if (parts.every(s => /^\.message\.(self|other)\b/.test(s))) continue; // 已全部映射，无需抢救
+                const pm = rawSel.match(/::?(before|after)\b/i);
+                if (pm) {
+                    if (!/(content|background|border|width|height|transform)/i.test(body)) continue;
+                    if (!/(bubble|chat|msg|message|balloon|tip|tail|arrow)/i.test(rawSel)) continue;
+                    pseudos.push({ pseudo: pm[1].toLowerCase(), body: body });
+                } else {
+                    if (this._bubbleScore(body) < 2) continue;
+                    if (!/(bubble|chat|msg|message|balloon)/i.test(rawSel)) continue;
+                    sharedBase.push(body);
+                }
+            }
+            if (sharedBase.length) {
+                res.prefix = '.message.self, .message.other {\n  ' + sharedBase.join(';\n  ') + '\n}\n';
+            }
+            if (pseudos.length) {
+                let s = '';
+                pseudos.forEach(r => {
+                    s += '.message.self::' + r.pseudo + ' {\n  ' + r.body + '\n}\n';
+                    s += '.message.other::' + r.pseudo + ' {\n  ' + r.body + '\n}\n';
+                });
+                res.suffix = s;
+            }
+            return res;
+        } catch (e) {
+            return res;
+        }
+    }
+
+    /**
+     * 万能气泡提取：类名再乱也能拆出双方气泡。
+     * - 解析全部规则（含 ::before / ::after 尾巴、贴图 background-image、CSS 变量）
+     * - 方向判断：类名/注释中文线索 → HTML 内联样式线索 → 兜底按"气泡感评分 + 出现顺序"
+     *   （评分并列时靠后的两条分别作为对方/自己，更早出现的视为双方共用样式）
+     * - 共用样式与共用尾巴同时应用到双方；:root 中的 CSS 变量保留在双方气泡上
+     * - 基础样式自动丢弃 position/width/margin 等破坏聊天布局的属性，伪元素尾巴原样保留
+     */
+    _extractBubbleCSS(css, inlineRules) {
+        css = css || '';
+        inlineRules = inlineRules || [];
+        if (!css && !inlineRules.length) return '';
+        try {
+            const OTHER_RX = /(left|them|other|incom|recv|receiv|reciev|friend|guest|对方|接收|收信|来信|左侧|左边|左)/i;
+            const SELF_RX = /(right|self|sent|outgo|mine|myself|自己|我的|发信|发送|右侧|右边|右)/i;
+            const ME_RX = /(^|[^a-z])(me|my)([^a-z]|$)/i;
+            const SHORT_O_RX = /[.\s>~+,]l(?![a-zA-Z0-9_-])/i;   /* 独立类名 l = left */
+            const SHORT_R_RX = /[.\s>~+,]r(?![a-zA-Z0-9_-])/i;   /* 独立类名 r = right */
+            const JUNK_RX = /(avatar|icon|photo|logo|button|btn|input|textarea|navbar|nav|header|footer|sidebar|scrollbar|tooltip|badge|close|delete|menu)/i;
+            const DROP_RX = /^(position|float|display|width|height|max-width|min-width|max-height|min-height|margin|margin-top|margin-bottom|margin-left|margin-right|top|left|right|bottom|z-index|overflow|flex|flex-grow|flex-shrink|flex-basis|grid|align-items|justify-content|clear|content)\s*:/i;
+            const rules = [];
+            let order = 0;
+            const re = /([^{}]+)\{([^{}]*)\}/g;
+            let m;
+            while ((m = re.exec(css)) !== null) {
+                const rawSel = (m[1] || '').trim();
+                const body = (m[2] || '').trim();
+                if (!rawSel || !body) continue;
+                if (rawSel.charAt(0) === '@') continue;
+                // :root / :host 里的 CSS 变量：保留（改挂到气泡上，避免污染全局）
+                if (/^(:root|:host)\b/.test(rawSel)) {
+                    const vars = body.split(';').map(s => s.trim()).filter(d => d.indexOf('--') === 0);
+                    if (vars.length) rules.push({ body: vars.join(';'), side: 'vars', pseudo: null, score: 0, order: order++ });
+                    continue;
+                }
+                if (/:hover|:focus|:active|:visited/i.test(rawSel)) continue;
+                if (/^(body|html|\*)\s*[,{]/i.test(rawSel) || /^(body|html|\*)$/i.test(rawSel)) continue;
+                // 规则前的中文注释（如「/* 对方 */」）作为方向线索
+                let comment = '';
+                const before = css.slice(Math.max(0, m.index - 160), m.index);
+                const cm = before.match(/\/\*([^*]*)\*\/\s*$/);
+                if (cm) comment = cm[1];
+                rawSel.split(',').map(s => s.trim()).filter(Boolean).forEach(sel => {
+                    let pseudo = null;
+                    let base = sel;
+                    const pm = sel.match(/::?(before|after)\b/i);
+                    if (pm) {
+                        pseudo = pm[1].toLowerCase();
+                        base = sel.slice(0, pm.index).trim() || '*';
+                    }
+                    if (JUNK_RX.test(base)) return;
+                    const hint = base + ' ' + comment;
+                    const isO = OTHER_RX.test(hint) || SHORT_O_RX.test(base);
+                    const isS = SELF_RX.test(hint) || ME_RX.test(hint) || SHORT_R_RX.test(base);
+                    let side = null;
+                    if (isO && !isS) side = 'other';
+                    else if (isS && !isO) side = 'self';
+                    const score = this._bubbleScore(body);
+                    rules.push({ body: body, side: side, pseudo: pseudo, score: score, order: order++ });
+                });
+            }
+            inlineRules.forEach(r => rules.push({ body: r.body, side: r.side, pseudo: null, score: this._bubbleScore(r.body), order: order++ }));
+            if (!rules.length) return '';
+
+            /* —— 基础规则分边 —— */
+            const bases = rules.filter(r => !r.pseudo && r.side !== 'vars' && r.score >= 2);
+            const hasO = bases.some(r => r.side === 'other');
+            const hasS = bases.some(r => r.side === 'self');
+            const unknowns = bases.filter(r => !r.side);
+            if ((!hasO || !hasS) && unknowns.length) {
+                // 评分优先、并列取靠后的（共用基础样式通常写在前面，左右变体写在后面）
+                const ranked = unknowns.slice().sort((a, b) => (b.score - a.score) || (b.order - a.order));
+                if (!hasO && !hasS) {
+                    if (ranked.length === 1) {
+                        ranked[0].side = 'shared';
+                    } else {
+                        const p1 = ranked[0], p2 = ranked[1];
+                        const first = p1.order < p2.order ? p1 : p2;
+                        const second = p1.order < p2.order ? p2 : p1;
+                        first.side = 'other';
+                        second.side = 'self';
+                        ranked.slice(2).forEach(r => { r.side = 'shared'; });
+                    }
+                } else if (!hasO) {
+                    ranked[0].side = 'other';
+                    ranked.slice(1).forEach(r => { r.side = 'shared'; });
+                } else {
+                    ranked[0].side = 'self';
+                    ranked.slice(1).forEach(r => { r.side = 'shared'; });
+                }
+            }
+            // 其余无方向的作为双方共用样式
+            bases.forEach(r => { if (!r.side) r.side = 'shared'; });
+
+            const shared = bases.filter(r => r.side === 'shared').map(r => r.body);
+            const otherB = bases.filter(r => r.side === 'other').map(r => r.body);
+            const selfB = bases.filter(r => r.side === 'self').map(r => r.body);
+            const varsB = rules.filter(r => r.side === 'vars').map(r => r.body);
+
+            /* —— 伪元素尾巴分边（无方向的尾巴同时给双方）—— */
+            const pseudos = rules.filter(r => r.pseudo && /(content|background|border|width|height|transform)/i.test(r.body));
+
+            const clean = (body) => body.split(';')
+                .map(s => s.trim())
+                .filter(Boolean)
+                .filter(decl => !DROP_RX.test(decl))
+                .join(';\n  ');
+
+            let out = '';
+            if (varsB.length) {
+                out += '.message.self, .message.other {\n  ' + varsB.join(';\n  ') + '\n}\n';
+            }
+            if (shared.length) {
+                out += '.message.self, .message.other {\n  ' + clean(shared.join(';\n  ')) + '\n}\n';
+            }
+            if (otherB.length) out += '.message.other {\n  ' + clean(otherB.join(';\n  ')) + '\n}\n';
+            if (selfB.length) out += '.message.self {\n  ' + clean(selfB.join(';\n  ')) + '\n}\n';
+            pseudos.forEach(r => {
+                if (r.side === 'other') {
+                    out += '.message.other::' + r.pseudo + ' {\n  ' + r.body + '\n}\n';
+                } else if (r.side === 'self') {
+                    out += '.message.self::' + r.pseudo + ' {\n  ' + r.body + '\n}\n';
+                } else {
+                    out += '.message.self::' + r.pseudo + ' {\n  ' + r.body + '\n}\n';
+                    out += '.message.other::' + r.pseudo + ' {\n  ' + r.body + '\n}\n';
+                }
+            });
+            out = out.trim();
+            /* 至少要能拆出一方气泡才返回，否则交回上层 */
+            return (otherB.length || selfB.length) ? out : '';
+        } catch (e) {
+            return '';
+        }
     }
 
     /**
@@ -5900,19 +6304,26 @@ if (this.dataManager.savePendingLetterId) {
     updateBubblePreview(css) {
         const previewStyle = document.getElementById('bubblePreviewStyle');
         if (!previewStyle) return;
-        previewStyle.textContent = this._scopeCSSForPreview(css);
+        try {
+            previewStyle.textContent = this._scopeCSSForPreview(this._prepareBubbleCSS(css));
+        } catch (e) {
+            console.warn('气泡预览更新失败:', e);
+        }
     }
 
     /**
      * 将CSS应用到聊天界面（实时替换）
      */
     applyBubbleCSS(css, showTip) {
-        const customStyle = document.getElementById('bubbleCustomStyle');
-        if (customStyle) {
-            const normalized = this._normalizeBubbleCSS(css);
-            customStyle.textContent = normalized !== css
-                ? (css + '\n' + normalized)
-                : (css || '');
+        try {
+            const customStyle = document.getElementById('bubbleCustomStyle');
+            if (customStyle) {
+                customStyle.textContent = this._prepareBubbleCSS(css);
+            }
+            // 自定义气泡样式生效期间标记 body，便于与默认样式区分
+            document.body.classList.toggle('bubble-custom-on', !!(css && css.trim()));
+        } catch (e) {
+            console.warn('气泡样式解析失败:', e);
         }
         if (!this.appData.bubbleStyle) this.appData.bubbleStyle = {};
         this.appData.bubbleStyle.css = css || '';
@@ -5938,7 +6349,12 @@ if (this.dataManager.savePendingLetterId) {
      * 获取所有自定义预设
      */
     _getCustomPresets() {
-        return this.appData.bubblePresets || [];
+        // 内存里没有预设（未初始化/被清空）时，直接从本地存储回读，保证刷新后不丢
+        if (!Array.isArray(this.appData.bubblePresets)) {
+            const stored = this.dataManager.getBubblePresets();
+            this.appData.bubblePresets = Array.isArray(stored) ? stored : [];
+        }
+        return this.appData.bubblePresets;
     }
 
     /**
@@ -5946,7 +6362,12 @@ if (this.dataManager.savePendingLetterId) {
      */
     _saveCustomPresets(presets) {
         this.appData.bubblePresets = presets;
-        this.dataManager.saveBubblePresets(presets);
+        // 立即写入本地存储，不依赖自动保存定时器
+        const ok = this.dataManager.saveBubblePresets(presets);
+        if (!ok) {
+            this.showNotification('⚠️ 预设保存失败，可能是浏览器存储空间不足');
+        }
+        return ok;
     }
 
     /**
@@ -8211,7 +8632,7 @@ const delay = minDelay + Math.random() * (maxDelay - minDelay);
         this.bindKeepAliveEvents();
 
         // 恢复之前的保活状态
-        const savedState = localStorage.getItem('keep_alive_enabled');
+        const savedState = LCSafeStorage.getItem('keep_alive_enabled');
         if (savedState === 'true') {
             setTimeout(() => {
                 this.startBackgroundKeepAlive();
@@ -8265,7 +8686,7 @@ const delay = minDelay + Math.random() * (maxDelay - minDelay);
             }, 15000);
 
             this.keepAliveActive = true;
-            localStorage.setItem('keep_alive_enabled', 'true');
+            LCSafeStorage.setItem('keep_alive_enabled', 'true');
             this.updateKeepAliveStatus('已开启 ✅', '#4caf50');
             this.showNotification('✅ 后台保活已开启，切换应用后仍可接收消息');
             console.log('🎵 后台保活音频已启动 (18Hz 超低频)');
@@ -8320,7 +8741,7 @@ const delay = minDelay + Math.random() * (maxDelay - minDelay);
             this.keepAliveAudioCtx = null;
         }
         this._keepAliveRefreshCount = 0;
-        localStorage.setItem('keep_alive_enabled', 'false');
+        LCSafeStorage.setItem('keep_alive_enabled', 'false');
         this.updateKeepAliveStatus('已关闭 ⏹️', '#ff9800');
         this.showNotification('后台保活已关闭');
         console.log('🔇 后台保活音频已停止');
@@ -9306,7 +9727,7 @@ const delay = minDelay + Math.random() * (maxDelay - minDelay);
             musicSettings: this.appData.musicSettings,
             pokeSettings: this.appData.pokeSettings, // 新增拍一拍设置
             bubbleStyle: this.appData.bubbleStyle || { css: '' },   // 正在使用的气泡样式
-            bubblePresets: this.appData.bubblePresets || [],        // 保存的气泡预设
+            bubblePresets: this._getCustomPresets(),                // 保存的气泡预设（全部）
             drawnCards: Array.from(this.appData.drawnCards || []),
             loveDays: this.appData.loveDays,
             readNoReplyMessageIds: this.appData.readNoReplyMessageIds,
@@ -9405,11 +9826,14 @@ const delay = minDelay + Math.random() * (maxDelay - minDelay);
                                 if (backup.appData.bubbleStyle) {
                                     this.appData.bubbleStyle = backup.appData.bubbleStyle;
                                     this.dataManager.saveBubbleStyle(this.appData.bubbleStyle);
+                                    // 立即把恢复的气泡样式套回聊天界面
+                                    this.applyBubbleCSS(this.appData.bubbleStyle?.css || '', false);
                                 }
-                                // 气泡样式预设
-                                if (backup.appData.bubblePresets) {
+                                // 气泡样式预设（全部）
+                                if (Array.isArray(backup.appData.bubblePresets)) {
                                     this.appData.bubblePresets = backup.appData.bubblePresets;
                                     this.dataManager.saveBubblePresets(this.appData.bubblePresets);
+                                    this.renderCustomPresets();
                                 }
                                 if (backup.appData.loveDays) this.appData.loveDays = backup.appData.loveDays;
                                 if (backup.appData.readNoReplyMessageIds) this.appData.readNoReplyMessageIds = backup.appData.readNoReplyMessageIds;
@@ -9545,7 +9969,7 @@ const delay = minDelay + Math.random() * (maxDelay - minDelay);
                 if (icon) icon.textContent = document.documentElement.classList.contains('night-mode') ? 'light_mode' : 'dark_mode';
                 
                 const isNightMode = document.documentElement.classList.contains('night-mode');
-                localStorage.setItem('night_mode_enabled', isNightMode ? 'true' : 'false');
+                LCSafeStorage.setItem('night_mode_enabled', isNightMode ? 'true' : 'false');
                 
                 if (isNightMode) {
                     document.body.style.backgroundColor = '#0a0a0a';

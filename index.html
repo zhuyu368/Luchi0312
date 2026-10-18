@@ -3827,6 +3827,8 @@ input:checked + .slider:before {
     <!-- 新增拍一拍设置标签 -->
     <button class="tab-button" data-tab="poke">👋 拍一拍设置</button>
     <button class="tab-button" data-tab="letter">✉️ 写信收信</button>
+    <button class="tab-button" data-tab="keepalive">🎵 后台保活</button>
+    <button class="tab-button" data-tab="notification-simple">🔔 消息推送设置</button>
     <button class="tab-button" data-tab="data">数据管理</button>
   </div>
   
@@ -4374,6 +4376,7 @@ input:checked + .slider:before {
         • 回信也会同步显示在聊天界面中
       </div>
     </div>
+  </div>
 </div>
     <!-- ===== 数据管理模块（已删除消息推送，已删除标题图标） ===== -->
     
@@ -4475,6 +4478,66 @@ input:checked + .slider:before {
 </div>
 <!-- ===== 气泡样式设置模块结束 ===== -->
 
+    <!-- ===== 后台保活模块 ===== -->
+    <div class="settings-section-card" id="section-keepalive" data-tab="keepalive">
+      <div class="settings-section-header collapsed" onclick="toggleSection('keepalive')">
+        <span>🎵 后台保活</span>
+        <i class="material-icons" id="icon-keepalive">expand_more</i>
+      </div>
+      <div class="settings-section-content collapsed" id="content-keepalive">
+        <div style="padding: 10px 0;">
+          <p style="font-size:0.82rem; color:var(--text); opacity:0.85; margin:0 0 14px; line-height:1.6;">
+            开启后台保活后，应用将通过播放超低频无声音频来保持后台活跃，即使切换到其他应用也能及时收到消息推送。<br>
+            <span style="color:var(--busy);">⚠️ 需要您主动点击下方按钮开启</span>
+          </p>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+            <button id="startKeepAliveBtn" style="padding:10px 20px; border:none; border-radius:20px; background:var(--accent); color:white; font-size:0.85rem; cursor:pointer; transition:all 0.2s; box-shadow:0 3px 8px rgba(138,127,141,0.3);">▶️ 开启保活</button>
+            <button id="stopKeepAliveBtn" style="padding:10px 20px; border:none; border-radius:20px; background:var(--accent-gray); color:white; font-size:0.85rem; cursor:pointer; transition:all 0.2s; box-shadow:0 3px 8px rgba(158,158,158,0.3);">⏹️ 关闭保活</button>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px; padding:8px 12px; background:rgba(138,127,141,0.08); border-radius:10px;">
+            <span style="font-size:0.82rem; color:var(--text); opacity:0.8;">🔊 保活状态</span>
+            <span id="keepAliveStatus" style="font-size:0.82rem; font-weight:500; color:var(--busy);">未启动</span>
+          </div>
+          <div style="font-size:0.78rem; color:var(--text); opacity:0.7; line-height:1.7; padding:10px 12px; background:rgba(138,127,141,0.06); border-radius:10px; border-left:3px solid var(--accent);">
+            <strong style="color:var(--accent);">💡 原理说明：</strong><br>
+            • 播放人耳听不到的 18Hz 超低频正弦波，音量极低<br>
+            • 浏览器会将此视为"正在播放媒体"，不会挂起页面 JavaScript<br>
+            • 每15秒自动刷新一次，防止被系统优化暂停<br>
+            • 效果与听音乐类似，但完全无声且极省资源
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- ===== 后台保活模块结束 ===== -->
+
+    <!-- ===== 消息推送设置模块（push-plugin版）===== -->
+    <div class="settings-section-card" id="section-notification-simple" data-tab="notification-simple">
+      <div class="settings-section-header collapsed" onclick="toggleSection('notification-simple')">
+        <span>🔔 消息推送设置</span>
+        <i class="material-icons" id="icon-notification-simple">expand_more</i>
+      </div>
+      <div class="settings-section-content collapsed" id="content-notification-simple">
+        <p style="font-size:0.78rem; color:#888; margin:0 0 14px 0; line-height:1.6;">
+          启用浏览器通知，在收到新消息时获得提醒。
+        </p>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button class="group-member-edit" id="requestPermissionBtn"
+                  style="width:100%; justify-content:center; padding:10px;">
+            🔔 请求通知权限
+          </button>
+          <button class="group-member-delete" id="testNotificationBtn"
+                  style="width:100%; justify-content:center; padding:10px; background:var(--accent-gray);">
+            📨 测试推送
+          </button>
+          <div style="margin-top:6px; padding:10px; background:rgba(138,127,141,0.08); border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:0.82rem; color:#666;">通知权限状态</span>
+            <span id="notificationStatus" style="font-size:0.8rem; color:#ff9800;">等待授权...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- ===== 消息推送设置模块结束 ===== -->
+
     <div class="settings-section-card" id="section-data" data-tab="data">
       <div class="settings-section-header collapsed" onclick="toggleSection('data')">
         <span>💾 数据管理</span>
@@ -4535,6 +4598,7 @@ input:checked + .slider:before {
 
 <!-- 通话/视频小窗口会动态创建 -->
 
+<script src="https://cdn.jsdelivr.net/npm/push-plugin@1.0.9/dist/push-plugin.min.js"></script>
 <script>
 // ========================
 // 第一部分：从第一个代码文件移植的健壮存储逻辑
@@ -5623,6 +5687,35 @@ if (this.dataManager.savePendingLetterId) {
         
         // 6. 显示加载成功通知
         this.showNotification('聊天记录已加载');
+
+        // ===== 初始化推送通知（push-plugin版）=====
+        this.initSimpleNotification();
+        console.log('✅ 消息通知已初始化（push-plugin版）');
+        // ===== 启动后台保活（Service Worker + 静音音频 + WakeLock）=====
+        this.enableBackgroundKeepAlive();
+        console.log('✅ 后台保活已启动');
+
+        // 监听 Service Worker 通知点击消息，执行页面内跳转
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', (e) => {
+                if (e.data && e.data.type === 'NOTIFICATION_CLICK') {
+                    const data = e.data.data || {};
+                    if (data.type === 'moments' && data.postId) {
+                        this._jumpToMomentsPost(data.postId);
+                    } else if (data.type === 'chat') {
+                        this._jumpToChat();
+                    } else if (data.type === 'letter') {
+                        this._jumpToLetter();
+                    } else if (data.postId) {
+                        this._jumpToMomentsPost(data.postId);
+                    } else {
+                        this._jumpToChat();
+                    }
+                }
+            });
+        }
+        // ===== 初始化后台保活UI控制器 =====
+        this.initBackgroundKeepAlive();
         
         // 7. 自动保存定时器（每30秒）
         setInterval(() => {
@@ -7893,6 +7986,449 @@ const delay = minDelay + Math.random() * (maxDelay - minDelay);
         document.body.style.overflow = '';
     }
     
+    // ===== 基于 push-plugin 的通知系统 =====
+
+    /**
+     * 初始化通知系统（push-plugin版）
+     */
+    initSimpleNotification() {
+        try {
+            this.pushPlugin = new WebPush('web-push', 'manifest.json');
+        } catch(e) {
+            console.warn('push-plugin 初始化失败，将使用原生 Notification API 降级', e);
+            this.pushPlugin = null;
+        }
+        this.updateNotificationStatusUIFromPlugin();
+        this.bindNotificationEvents();
+    }
+
+    /**
+     * 绑定通知UI事件
+     */
+    bindNotificationEvents() {
+        const requestBtn = document.getElementById('requestPermissionBtn');
+        const testBtn = document.getElementById('testNotificationBtn');
+
+        if (requestBtn) {
+            requestBtn.addEventListener('click', () => {
+                if (this.pushPlugin) {
+                    this.pushPlugin.requestPermission();
+                    setTimeout(() => this.updateNotificationStatusUIFromPlugin(), 500);
+                } else if ('Notification' in window) {
+                    Notification.requestPermission().then(() => {
+                        setTimeout(() => this.updateNotificationStatusUIFromPlugin(), 300);
+                        this.showNotification(Notification.permission === 'granted' ? '通知权限已授予 ✅' : '通知权限被拒绝 ❌');
+                    });
+                }
+            });
+        }
+
+        if (testBtn) {
+            testBtn.addEventListener('click', () => {
+                if (this.pushPlugin && Notification.permission === 'granted') {
+                    const appTitle = this.appData?.appearanceSettings?.appTitle || '梦角爱人';
+                    this.pushPlugin.sendNotification(appTitle, '🧪 这是一条测试通知');
+                    this.showNotification('✅ 测试推送已发送');
+                } else if (!this.pushPlugin && Notification.permission === 'granted') {
+                    const appTitle = this.appData?.appearanceSettings?.appTitle || '梦角爱人';
+                    try { new Notification(appTitle, { body: '🧪 这是一条测试通知', tag: 'test-' + Date.now() }); } catch(e){}
+                    this.showNotification('✅ 测试推送已发送');
+                } else {
+                    this.showNotification('请先点击"请求通知权限"按钮并允许通知');
+                }
+            });
+        }
+    }
+
+    /**
+     * 从插件状态更新权限UI
+     */
+    updateNotificationStatusUIFromPlugin() {
+        if (!('Notification' in window)) {
+            this.updateNotificationStatusUI('不支持通知', '#f44336');
+            return;
+        }
+        switch (Notification.permission) {
+            case 'granted': this.updateNotificationStatusUI('已授权 ✅', '#4caf50'); break;
+            case 'denied':  this.updateNotificationStatusUI('已拒绝 ❌', '#f44336'); break;
+            default:        this.updateNotificationStatusUI('未授权，请点击上方按钮', '#ff9800'); break;
+        }
+    }
+
+    updateNotificationStatusUI(text, color = '#888') {
+        const el = document.getElementById('notificationStatus');
+        if (el) { el.textContent = text; el.style.color = color; }
+    }
+
+    /**
+     * 发送新消息通知
+     */
+    sendSimpleNotification(title, body, options = {}) {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        // 防重复：200ms 内不重复
+        const now = Date.now();
+        if (now - (this._lastNotifTime || 0) < 200) return;
+        this._lastNotifTime = now;
+
+        const appTitle = this.appData?.appearanceSettings?.appTitle || title || '梦角爱人';
+        const notifBody = body || title;
+        const icon = this.appData.otherInfo?.avatar || '/favicon.ico';
+        const tag = 'msg-' + now + '-' + Math.random().toString(36).slice(2, 5);
+        const { postId, type } = options;
+
+        // 点击通知后的跳转处理
+        const handleClick = () => {
+            window.focus();
+            if (type === 'moments' && postId) {
+                this._jumpToMomentsPost(postId);
+            } else if (type === 'chat') {
+                this._jumpToChat();
+            } else if (type === 'letter') {
+                this._jumpToLetter();
+            } else if (postId) {
+                this._jumpToMomentsPost(postId);
+            } else {
+                this._jumpToChat();
+            }
+        };
+
+        // 1. 优先通过 Service Worker 发送（支持后台推送）
+        const swReg = this._swRegistration;
+        if (swReg && swReg.active) {
+            try {
+                swReg.active.postMessage({
+                    type: 'SHOW_NOTIFICATION',
+                    title: appTitle,
+                    body: notifBody,
+                    icon: icon,
+                    tag: tag,
+                    data: { postId: postId || null, type: type || null }
+                });
+                this._pendingNotifData = { postId, type };
+                return;
+            } catch(e) {
+                console.warn('SW 发送通知失败，降级', e);
+            }
+        }
+
+        // 2. 降级：使用 push-plugin
+        if (this.pushPlugin) {
+            try {
+                this.pushPlugin.sendNotification(appTitle, notifBody);
+                return;
+            } catch(e) {
+                console.warn('push-plugin 发送失败，降级到原生 Notification', e);
+            }
+        }
+
+        // 3. 最终降级：原生 Notification API（支持 onclick）
+        try {
+            const notif = new Notification(appTitle, {
+                body: notifBody,
+                icon: icon,
+                tag: tag,
+                renotify: true,
+            });
+            notif.onclick = handleClick;
+        } catch(e) { console.warn('原生通知发送失败', e); }
+    }
+
+    /**
+     * 跳转到聊天界面
+     */
+    _jumpToChat() {
+        const homePage = document.getElementById('homePage');
+        const container = document.querySelector('.container');
+        if (homePage && !homePage.classList.contains('hidden')) {
+            homePage.classList.add('hidden');
+            setTimeout(() => {
+                homePage.style.display = 'none';
+                if (container) {
+                    container.style.display = 'flex';
+                    container.classList.add('app-enter');
+                    setTimeout(() => container.classList.remove('app-enter'), 350);
+                }
+            }, 300);
+        } else if (container) {
+            this.renderMessages();
+            const area = document.getElementById('messagesArea');
+            if (area) setTimeout(() => { area.scrollTop = area.scrollHeight; }, 100);
+        }
+        if (window.momentsApp) window.momentsApp.closeDrawer();
+    }
+
+    /**
+     * 跳转到朋友圈指定动态
+     */
+    _jumpToMomentsPost(postId) {
+        if (!window.momentsApp) return;
+        window.momentsApp.openDrawer();
+        setTimeout(() => {
+            if (!postId) return;
+            const el = document.querySelector(`[data-post-id="${postId}"]`);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el.style.transition = 'box-shadow 0.3s';
+                el.style.boxShadow = '0 0 0 3px rgba(138,127,141,0.6)';
+                setTimeout(() => { el.style.boxShadow = ''; }, 1500);
+            }
+        }, 500);
+    }
+
+    /**
+     * 跳转到信件页面
+     */
+    _jumpToLetter() {
+        this.openSettings();
+        setTimeout(() => {
+            this.switchTab('letter');
+            const writePanel = document.getElementById('letterWritePanel');
+            const inboxPanel = document.getElementById('letterInboxPanel');
+            const writeTab = document.getElementById('letterTabWrite');
+            const inboxTab = document.getElementById('letterTabInbox');
+            if (writePanel && inboxPanel && writeTab && inboxTab) {
+                writePanel.style.display = 'block';
+                inboxPanel.style.display = 'none';
+                writeTab.style.background = '#8a7f8d';
+                writeTab.style.color = 'white';
+                inboxTab.style.background = 'rgba(138,127,141,0.15)';
+                inboxTab.style.color = '#8a7f8d';
+            }
+        }, 300);
+    }
+
+    // ===== 后台保活系统（Service Worker + 静音音频 + WakeLock）=====
+    // ===== 后台保活音频UI管理系统 =====
+    initBackgroundKeepAlive() {
+        this.keepAliveActive = false;
+        this.keepAliveTimer = null;
+        this.keepAliveOscillator = null;
+        this.keepAliveGain = null;
+        this.keepAliveAudioCtx = null;
+        this._keepAliveRefreshCount = 0;
+
+        // 绑定按钮事件
+        this.bindKeepAliveEvents();
+
+        // 恢复之前的保活状态
+        const savedState = localStorage.getItem('keep_alive_enabled');
+        if (savedState === 'true') {
+            setTimeout(() => {
+                this.startBackgroundKeepAlive();
+            }, 2000);
+        }
+    }
+
+    bindKeepAliveEvents() {
+        const startBtn = document.getElementById('startKeepAliveBtn');
+        const stopBtn = document.getElementById('stopKeepAliveBtn');
+        if (startBtn) {
+            startBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.startBackgroundKeepAlive();
+            });
+        }
+        if (stopBtn) {
+            stopBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.stopBackgroundKeepAlive();
+            });
+        }
+    }
+
+    startBackgroundKeepAlive() {
+        if (this.keepAliveActive) {
+            this.updateKeepAliveStatus('已开启 ✅', '#4caf50');
+            this.showNotification('后台保活已在运行中');
+            return;
+        }
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            this.keepAliveAudioCtx = audioCtx;
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            this._createKeepAliveTone(audioCtx);
+
+            this.keepAliveTimer = setInterval(() => {
+                if (!this.keepAliveActive) {
+                    clearInterval(this.keepAliveTimer);
+                    this.keepAliveTimer = null;
+                    return;
+                }
+                const ctx = this.keepAliveAudioCtx;
+                if (ctx) {
+                    if (ctx.state === 'suspended') ctx.resume();
+                    this._createKeepAliveTone(ctx);
+                    this._keepAliveRefreshCount++;
+                }
+            }, 15000);
+
+            this.keepAliveActive = true;
+            localStorage.setItem('keep_alive_enabled', 'true');
+            this.updateKeepAliveStatus('已开启 ✅', '#4caf50');
+            this.showNotification('✅ 后台保活已开启，切换应用后仍可接收消息');
+            console.log('🎵 后台保活音频已启动 (18Hz 超低频)');
+        } catch (e) {
+            console.warn('❌ 后台保活启动失败:', e);
+            this.showNotification('⚠️ 启动失败，请确保点击了页面后再试');
+            this.updateKeepAliveStatus('启动失败 ❌', '#f44336');
+        }
+    }
+
+    _createKeepAliveTone(audioCtx) {
+        if (this.keepAliveOscillator) {
+            try { this.keepAliveOscillator.stop(); this.keepAliveOscillator.disconnect(); } catch (e) {}
+            this.keepAliveOscillator = null;
+        }
+        if (this.keepAliveGain) {
+            try { this.keepAliveGain.disconnect(); } catch (e) {}
+            this.keepAliveGain = null;
+        }
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.value = 18;
+        const now = audioCtx.currentTime;
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.0005, now + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.0003, now + 0.5);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.start(now);
+        oscillator.stop(now + 5);
+        this.keepAliveOscillator = oscillator;
+        this.keepAliveGain = gainNode;
+    }
+
+    stopBackgroundKeepAlive() {
+        this.keepAliveActive = false;
+        if (this.keepAliveTimer) {
+            clearInterval(this.keepAliveTimer);
+            this.keepAliveTimer = null;
+        }
+        if (this.keepAliveOscillator) {
+            try { this.keepAliveOscillator.stop(); this.keepAliveOscillator.disconnect(); } catch (e) {}
+            this.keepAliveOscillator = null;
+        }
+        if (this.keepAliveGain) {
+            try { this.keepAliveGain.disconnect(); } catch (e) {}
+            this.keepAliveGain = null;
+        }
+        if (this.keepAliveAudioCtx) {
+            try { this.keepAliveAudioCtx.close(); } catch (e) {}
+            this.keepAliveAudioCtx = null;
+        }
+        this._keepAliveRefreshCount = 0;
+        localStorage.setItem('keep_alive_enabled', 'false');
+        this.updateKeepAliveStatus('已关闭 ⏹️', '#ff9800');
+        this.showNotification('后台保活已关闭');
+        console.log('🔇 后台保活音频已停止');
+    }
+
+    updateKeepAliveStatus(text, color = '#ff9800') {
+        const statusEl = document.getElementById('keepAliveStatus');
+        if (statusEl) {
+            statusEl.textContent = text;
+            statusEl.style.color = color;
+            statusEl.style.transition = 'all 0.3s ease';
+        }
+    }
+
+    enableBackgroundKeepAlive() {
+        console.log('尝试开启后台保活...');
+
+        // 1. 注册内嵌 Service Worker（Blob URL方式，无需外部sw.js文件）
+        if ('serviceWorker' in navigator) {
+            const swCode = `
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+
+let lastNotifData = null;
+
+self.addEventListener('message', e => {
+    if (e.data && e.data.type === 'SHOW_NOTIFICATION') {
+        const { title, body, icon, tag, data } = e.data;
+        lastNotifData = data || null;
+        e.waitUntil(
+            self.registration.showNotification(title, {
+                body: body || '',
+                icon: icon || '/favicon.ico',
+                badge: icon || '/favicon.ico',
+                tag: tag || ('sw-' + Date.now()),
+                renotify: true,
+                requireInteraction: false,
+                data: data || {}
+            })
+        );
+    }
+});
+
+self.addEventListener('notificationclick', e => {
+    e.notification.close();
+    const data = e.notification.data || lastNotifData || {};
+    e.waitUntil(
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+            for (const client of clients) {
+                if ('focus' in client) {
+                    client.focus();
+                    client.postMessage({ type: 'NOTIFICATION_CLICK', data: data });
+                    return;
+                }
+            }
+            if (self.clients.openWindow) return self.clients.openWindow('/');
+        })
+    );
+});
+`;
+            try {
+                const blob = new Blob([swCode], { type: 'application/javascript' });
+                const swUrl = URL.createObjectURL(blob);
+                navigator.serviceWorker.register(swUrl, { scope: '/' })
+                    .then(reg => {
+                        this._swRegistration = reg;
+                        console.log('✅ 内嵌 Service Worker 注册成功');
+                    })
+                    .catch(err => console.warn('SW 注册失败（需 HTTPS）:', err));
+            } catch (e) {
+                console.warn('SW Blob 注册失败:', e);
+            }
+        }
+
+        // 2. 静音音频循环保活（防止页面被浏览器挂起）
+        try {
+            const audio = new Audio();
+            audio.src = 'data:audio/mp3;base64,//uQZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWgAAAA0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+            audio.loop = true;
+            audio.volume = 0;
+            audio.playsInline = true;
+            const playAudio = () => {
+                audio.play()
+                    .then(() => console.log('✅ 后台保活音频已启动'))
+                    .catch(e => console.warn('音频自动播放被阻止，需要用户交互', e));
+            };
+            document.addEventListener('click', playAudio, { once: true });
+            document.addEventListener('touchstart', playAudio, { once: true });
+            this.appData._keepAliveAudio = audio;
+        } catch (e) {
+            console.warn('后台保活音频启动失败', e);
+        }
+
+        // 3. WakeLock 防止 CPU/屏幕休眠
+        if ('wakeLock' in navigator) {
+            const requestWakeLock = async () => {
+                try {
+                    this._wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('✅ WakeLock 已获取');
+                } catch (e) { console.warn('WakeLock 获取失败:', e); }
+            };
+            requestWakeLock();
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) requestWakeLock();
+            });
+        }
+    }
+
     switchTab(tabId) {
         if (!document.getElementById('settingsPanel')?.classList.contains('active')) {
             this.openSettings();
